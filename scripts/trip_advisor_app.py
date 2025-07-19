@@ -9,15 +9,15 @@ from langchain_core.prompts import PromptTemplate
 from langgraph.graph import START, StateGraph
 from typing_extensions import TypedDict
 
+# Environment variables
+load_dotenv()
+
 # State class for LangChain Graph
 class State(TypedDict):
+    query: str
     location: str
     location_information: str
     answer: str
-
-
-# Environment variables
-load_dotenv()
 
 # APIs
 # geocoding_uri = 'https://nominatim.openstreetmap.org/search'
@@ -25,16 +25,22 @@ GEOCODE_URI = 'https://api.opencagedata.com/geocode/v1/json'
 WEATHER_URI = 'https://api.tomorrow.io/v4/weather/forecast'
 POI_URI = 'https://places-api.foursquare.com/places/search'
 
-# Initialize LLM and custom prompt
+# Initialize LLM and custom prompts
 llm = init_chat_model('gemini-2.0-flash', model_provider='google_genai')
-prompt = PromptTemplate.from_template("You are an assistant for giving rich descriptions on locations and cities around the world for tourism. Using your knowledge base, and given the following weather information and at most 3 points of interest chosen at your discretion in that location, give a rich description of the location. Be creative.\nLocation: {location}\nLocation information: {location_information}\nAnswer:")
+location_prompt = PromptTemplate.from_template('Your task is to extract the location from a user query.\nQuery: {query}\nLocation: ')
+describe_prompt = PromptTemplate.from_template("You are an assistant for giving rich descriptions on locations and cities around the world for tourism. Using your knowledge base, and given the following weather information and at most 3 points of interest chosen at your discretion in that location, give a rich description of the location. Be creative.\nLocation: {location}\nLocation information: {location_information}\nAnswer:")
+
+# Helper function to extract destionation name
+def extract_city(state: State):
+    extraction_prompt = location_prompt.invoke({'query': state['query']})
+    response = llm.invoke(extraction_prompt)
+    return {'location': response.content}
 
 # Retrieve information from APIs
-
 def retrieve_location_info(state: State):
     # Retrieve latitude and longtitude from geocode api
-    query = state['location']
-    geo_response = requests.get(GEOCODE_URI, params={'q': query, 'key': os.environ['OPENCAGE_API_KEY']})
+    destination = state['location']
+    geo_response = requests.get(GEOCODE_URI, params={'q': destination, 'key': os.environ['OPENCAGE_API_KEY']})
     lat = geo_response.json()['results'][0]['geometry']['lat']
     lon = geo_response.json()['results'][0]['geometry']['lng']
 
@@ -74,13 +80,13 @@ def retrieve_location_info(state: State):
 
 # Generate LLM response
 def generate(state: State):
-    messages = prompt.invoke({'location': state['location'], 'location_information': state['location_information']})
+    messages = describe_prompt.invoke({'location': state['location'], 'location_information': state['location_information']})
     response = llm.invoke(messages)
     return {'answer': response.content}
 
 # Create graph workflow
-graph_builder = StateGraph(State).add_sequence([retrieve_location_info, generate])
-graph_builder.add_edge(START, 'retrieve_location_info')   
+graph_builder = StateGraph(State).add_sequence([extract_city, retrieve_location_info, generate])
+graph_builder.add_edge(START, 'extract_city')
 graph = graph_builder.compile() 
 
 # Streamlit app
@@ -94,8 +100,8 @@ if st.button("Generate Description"):
     else:
         with st.spinner("Retrieving information and generating response..."):
             try:
-                result = graph.invoke({'location': user_input})
-                st.success("Here's your description:")
+                result = graph.invoke({'query': user_input})
+                st.success("Here's what we found:")
                 st.text_area("Output:", result['answer'], height=400)
             except Exception as e:
                 st.error(f"Something went wrong: {str(e)}")
