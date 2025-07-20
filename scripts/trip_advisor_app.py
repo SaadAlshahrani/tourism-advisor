@@ -10,7 +10,7 @@ from langgraph.graph import START, StateGraph
 from typing_extensions import TypedDict
 
 # Environment variables
-load_dotenv()
+# load_dotenv()
 
 # State class for LangChain Graph
 class State(TypedDict):
@@ -90,11 +90,16 @@ graph_builder.add_edge(START, 'extract_city')
 graph = graph_builder.compile() 
 
 # Streamlit app
+st.set_page_config(
+    page_title="Trip Advisor",
+    page_icon="🗺️",
+)
+
 st.title('Trip Advisor')
 
-user_input = st.text_input('Which city do you want to learn about?')
+user_input = st.text_input('Which destination do you want to learn about?')
 
-if st.button("Generate Description"):
+if st.button("Let's go!"):
     if not user_input.strip():
         st.warning("Please enter a location.")
     else:
@@ -102,6 +107,6 @@ if st.button("Generate Description"):
             try:
                 result = graph.invoke({'query': user_input})
                 st.success("Here's what we found:")
-                st.text_area("Output:", result['answer'], height=400)
+                st.markdown(result['answer'])
             except Exception as e:
                 st.error(f"Something went wrong: {str(e)}")

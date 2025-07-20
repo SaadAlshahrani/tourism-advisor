@@ -1,0 +1,6 @@
+env/
+notebooks/
+.env
+.gitignore
+README.md
+requirements.txt

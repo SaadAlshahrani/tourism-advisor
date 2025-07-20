@@ -1,0 +1,15 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY requirements_prod.txt .
+
+RUN pip install --no-cache-dir -r requirements_prod.txt
+
+COPY . .
+
+EXPOSE 8501
+
+HEALTHCHECK CMD curl --fail http://localhost:8501/_stcore/health
+
+ENTRYPOINT  ["streamlit", "run", "scripts/trip_advisor_app.py", "--server.port=8501", "--server.address=0.0.0.0"]
