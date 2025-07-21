@@ -10,7 +10,7 @@ from langgraph.graph import START, StateGraph
 from typing_extensions import TypedDict
 
 # Environment variables
-# load_dotenv()
+load_dotenv()
 
 # State class for LangChain Graph
 class State(TypedDict):
@@ -26,7 +26,7 @@ WEATHER_URI = 'https://api.tomorrow.io/v4/weather/forecast'
 POI_URI = 'https://places-api.foursquare.com/places/search'
 
 # Initialize LLM and custom prompts
-llm = init_chat_model('gemini-2.0-flash', model_provider='google_genai')
+llm = init_chat_model('gemini-2.0-flash', model_provider='google_genai', temperature=0.7)
 location_prompt = PromptTemplate.from_template('Your task is to extract the location from a user query.\nQuery: {query}\nLocation: ')
 describe_prompt = PromptTemplate.from_template("You are an assistant for giving rich descriptions on locations and cities around the world for tourism. Using your knowledge base, and given the following weather information and at most 3 points of interest chosen at your discretion in that location, give a rich description of the location. Be creative.\nLocation: {location}\nLocation information: {location_information}\nAnswer:")
 
@@ -41,6 +41,8 @@ def retrieve_location_info(state: State):
     # Retrieve latitude and longtitude from geocode api
     destination = state['location']
     geo_response = requests.get(GEOCODE_URI, params={'q': destination, 'key': os.environ['OPENCAGE_API_KEY']})
+    if not geo_response.json()['results']:
+        return {'location_information': 'No information were found for this place.'}
     lat = geo_response.json()['results'][0]['geometry']['lat']
     lon = geo_response.json()['results'][0]['geometry']['lng']
 
@@ -91,17 +93,19 @@ graph = graph_builder.compile()
 
 # Streamlit app
 st.set_page_config(
-    page_title="Trip Advisor",
+    page_title="Tourism Advisor",
     page_icon="🗺️",
 )
 
-st.title('Trip Advisor')
-
-user_input = st.text_input('Which destination do you want to learn about?')
+st.title('🗺️ :orange[Tourism Advisor]')
+st.header('❔ About')
+st.write('A simple project where an LLM recommends a destination by retrieving information of it in order to help informed decision-making for travel.\n\nThis project combines RAG, LLMs, APIs, containerization, and cloud-hosting into a single web app.')
+st.header('✔️ Try it!')
+user_input = st.text_input('Which destination do you want to learn about? (e.g. "Tell me about Paris")', placeholder='Tell me about...')
 
 if st.button("Let's go!"):
     if not user_input.strip():
-        st.warning("Please enter a location.")
+        st.warning("Erm... You haven't entered anything.")
     else:
         with st.spinner("Retrieving information and generating response..."):
             try:
@@ -110,3 +114,9 @@ if st.button("Let's go!"):
                 st.markdown(result['answer'])
             except Exception as e:
                 st.error(f"Something went wrong: {str(e)}")
+st.empty()
+st.header('🔨 Possible Improvements')
+st.write('- Arabic/multi language support\n- Better user interface\n- "Advising" for or against the destination instead of just recommending it\n- Retrieve images of the destination\n- Retrieve flight information (such as prices)')
+st.subheader('📱 Socials')
+st.write('[GitHub](https://github.com/SaadAlshahrani)')
+st.write('[LinkedIn](https://www.linkedin.com/in/saad-s-alshahrani/)')
